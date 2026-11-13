@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salvar no GitHub</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 500px; margin: 30px auto; padding: 15px; background: #f0f2f5; }
+    .caixa { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    input { width: 100%; padding: 12px; margin: 10px 0; box-sizing: border-box; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; }
+    button { width: 100%; padding: 12px; background: #2ea44f; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; }
+    button:disabled { background: #ccc; }
+    pre { background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+  </style>
+</head>
+<body>
+
+  <div class="caixa">
+    <h2>Salvar no GitHub</h2>
+    <form id="formulario">
+      <input type="text" id="campoTexto" placeholder="Digite algo para salvar no TXT..." required>
+      <button type="submit" id="botao">Enviar para o TXT</button>
+    </form>
+    <p id="mensagemStatus" style="font-weight: bold;"></p>
+  </div>
+
+  <h3>O que está escrito no GitHub agora:</h3>
+  <pre id="telaTxt">Carregando...</pre>
+
+  <script>
+    const USUARIO = "joao55jbn-rgb";
+    const REPOSITORIO = "meu-txt";
+    const ARQUIVO = "dados.txt";
+    
+    // 👇 COLE O SEU TOKEN ENTRE AS ASPAS ABAIXO 👇
+    const TOKEN = "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";
+
+    const URL_API = `https://github.com{USUARIO}/${REPOSITORIO}/contents/${ARQUIVO}`;
+    const telaTxt = document.getElementById("telaTxt");
+    const status = document.getElementById("mensagemStatus");
+    const botao = document.getElementById("botao");
+
+    async function lerGitHub() {
+      const resposta = await fetch(`${URL_API}?t=${Date.now()}`, {
+        headers: {
+          "Authorization": `Bearer ${TOKEN}`,
+          "Accept": "application/vnd.github.v3+json"
+        }
+      });
+
+      if (!resposta.ok) {
+        throw new Error(`Erro ${resposta.status}: Verifique se o Token está certo.`);
+      }
+
+      const dados = await resposta.json();
+      const textoLimpo = decodeURIComponent(escape(atob(dados.content)));
+      return { texto: textoLimpo, sha: dados.sha };
+    }
+
+    async function iniciar() {
+      try {
+        const dados = await lerGitHub();
+        telaTxt.innerText = dados.texto;
+      } catch (erro) {
+        telaTxt.innerText = erro.message;
+      }
+    }
+
+    document.getElementById("formulario").addEventListener("submit", async function(e) {
+      e.preventDefault();
+      botao.disabled = true;
+      status.style.color = "black";
+      status.innerText = "Verificando e salvando no GitHub...";
+
+      const textoDigitado = document.getElementById("campoTexto").value.trim();
+
+      try {
+        const atual = await lerGitHub();
+
+        if (atual.texto.includes(textoDigitado)) {
+          status.style.color = "orange";
+          status.innerText = "Aviso: Esse texto já existe no arquivo!";
+          botao.disabled = false;
+          return;
+        }
+
+        const novoConteudo = atual.texto + "\n" + textoDigitado;
+        const base64 = btoa(unescape(encodeURIComponent(novoConteudo)));
+
+        const salvar = await fetch(URL_API, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${TOKEN}`,
+            "Accept": "application/vnd.github.v3+json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: "Adicionado via site",
+            content: base64,
+            sha: atual.sha
+          })
+        });
+
+        if (!salvar.ok) throw new Error("Erro ao gravar no GitHub.");
+
+        document.getElementById("campoTexto").value = "";
+        status.style.color = "green";
+        status.innerText = "Salvo com sucesso no GitHub!";
+        telaTxt.innerText = novoConteudo;
+
+      } catch (erro) {
+        status.style.color = "red";
+        status.innerText = erro.message;
+      } finally {
+        botao.disabled = false;
+      }
+    });
+
+    iniciar();
+  </script>
+</body>
+</html>
